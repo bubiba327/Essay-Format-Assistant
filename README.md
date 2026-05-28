@@ -4,6 +4,10 @@ This repository packages the `lunwen-geshi-zhushou` Codex skill as a GitHub-read
 
 The skill analyzes a thesis format sample, exports an editable XLSX confirmation table, then applies the confirmed table to a copied Word thesis with comments and mandatory LibreOffice visual QA.
 
+## 最简单用法
+
+选中这个插件，或明确告诉 Codex “使用论文格式助手这个 skill”。然后直接把格式范文发给 Codex，并说明“这是我的格式范文”。发送后，Codex 会分析范文并反馈一个格式确认表；你确认之后，再把需要修改格式的论文发给 Codex，它会创建一个副本，并在副本中修改你的论文格式。
+
 ## Contents
 
 - `.codex-plugin/plugin.json` - Codex plugin manifest

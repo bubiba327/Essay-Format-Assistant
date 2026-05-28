@@ -19,7 +19,7 @@
   "interface": {
     "displayName": "论文格式助手",
     "shortDescription": "先生成格式确认表，再按表整理论文。",
-    "longDescription": "根据用户提供的论文格式范文自动识别正文、标题、目录、表格、图像说明等格式，生成可编辑的 XLSX 格式确认表；用户确认后，再按最终确认表修改论文副本，并在改动处添加格式变更批注。",
+    "longDescription": "根据用户提供的论文格式范文自动识别正文、标题、目录、表格、图像说明等格式，生成可编辑的 XLSX 格式确认表；用户确认后，再按最终确认表修改论文副本，并在改动处添加格式变更批注。最简单用法：明确说“使用论文格式助手这个 skill”，先发送格式范文并说明这是格式范文，确认格式表后再发送需要修改格式的论文。",
     "developerName": "hezhengyu",
     "category": "Productivity",
     "capabilities": [
