@@ -39,5 +39,5 @@
 
 - [x] Run JSON validation for `.codex-plugin/plugin.json`.
 - [x] Run the script test suite.
-- [ ] Commit the change.
-- [ ] Push to `origin/main` using the local HTTP proxy if needed.
+- [x] Commit the change.
+- [x] Push to `origin/main` using the local HTTP proxy if needed.
