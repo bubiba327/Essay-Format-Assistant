@@ -11,7 +11,7 @@ Never edit the user's original thesis in place. First analyze only the format sa
 
 Use the Documents plugin workflow for DOC/DOCX work. Always load workspace dependencies first and run the bundled Codex Python directly through `scripts/run_thesis_format_from_sample.sh` (or the exact bundled Python path from `load_workspace_dependencies`). Do not probe system Python first and do not fall back through multiple local runtimes.
 
-LibreOffice is a hard dependency. Use `/Applications/LibreOffice.app/Contents/MacOS/soffice` on macOS when present, or `SOFFICE` if the user has configured a different path. Do not run this skill in a fallback/no-render mode. The script converts legacy `.doc` files with LibreOffice, normalizes LibreOffice-only OOXML alignment values, renders PDF/page PNGs, and writes visual QA artifacts. If `soffice` is unavailable, stop and ask the user to install LibreOffice or set `SOFFICE` to the executable path. On macOS, the script uses Swift/PDFKit to render pages, avoiding Poppler.
+LibreOffice is the quality gate dependency, not a casual optional extra. Use `/Applications/LibreOffice.app/Contents/MacOS/soffice` on macOS when present, or `SOFFICE` if the user has configured a different path. `review` and `strict` runs require LibreOffice because the script renders PDF/page PNGs, validates TOC displayed pages, and writes visual QA artifacts. Legacy `.doc`/`.rtf`/`.odt` inputs also require LibreOffice for conversion. If LibreOffice is unavailable, you may use `--qa-level fast` only for `.docx`-only trial/smoke runs; clearly tell the user this skips rendering and is not final delivery. For a final handoff, install LibreOffice or run on a machine with LibreOffice and rerun `--qa-level strict`. On macOS, the script uses Swift/PDFKit to render pages, avoiding Poppler.
 
 ## Workflow
 
@@ -81,10 +81,12 @@ LibreOffice is a hard dependency. Use `/Applications/LibreOffice.app/Contents/Ma
    - use `--comment-mode none` only when the user asks for a clean copy without comments
    - comments must say `original format -> adjusted format` for changed properties such as font, font color, size, bold, italic, alignment, line spacing, paragraph spacing, indentation, and TOC tab/leader settings
 18. Validate with the LibreOffice visual gate:
-   - The script must find `soffice` before it starts.
+   - For `review` and `strict`, the script must find `soffice` before it starts.
+   - For `fast`, `.docx`-only runs may continue without `soffice`; treat this as a trial/smoke run and not as a deliverable final QA pass.
+   - Legacy `.doc`/`.rtf`/`.odt` inputs require `soffice` even in `fast`; if the user cannot install LibreOffice, ask them to save the file as `.docx` in Word/WPS first.
    - For sample analysis in `strict` or `review`, render the converted/read sample into `page-*.png` images and a PDF under `visual-qa/`.
    - For formatted output, validate the DOCX container, re-open with `python-docx`, confirm comments when comments were generated, then follow the selected QA level. In `review`/`strict`, use the PDF-only pagination probe before final PNG generation so a stale-TOC intermediate version is never rasterized merely to be discarded.
-   - `fast`: skip LibreOffice rendering and write a visual report that says rendering was skipped; use only for code/debug smoke checks, not final delivery.
+   - `fast`: skip LibreOffice rendering and write a visual report that says rendering was skipped; use only for code/debug smoke checks or no-LibreOffice `.docx` trials, not final delivery.
    - `review`: render at lighter dimensions, write `contact-sheet.png`, `visual-risk-report.txt/json`, and inspect the selected review/risk pages instead of opening every page.
    - `strict`: render full high-resolution pages and keep side-edge ink detection as a hard failure.
    - Open the rendered PNGs/contact sheet and inspect layout, TOC, tables, figures, captions, comments, spacing, overlap, blank pages, and page breaks according to the QA level.

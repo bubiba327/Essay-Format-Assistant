@@ -435,7 +435,7 @@ HEADING_OUTLINE_LEVEL_BY_ROLE = {
     "second": 1,
     "third": 2,
 }
-LEGACY_WORD_SUFFIXES = {".doc", ".rtf"}
+LEGACY_WORD_SUFFIXES = {".doc", ".rtf", ".odt"}
 LEGACY_TOC_UNRELIABLE_BOOL_FIELDS = {"italic", "all_caps", "small_caps"}
 
 
@@ -2299,7 +2299,10 @@ def normalize_docx_alignment_values(input_path: Path, output_path: Path | None =
     return destination
 
 
-def convert_legacy_word(input_path: Path, work_dir: Path, soffice: Path) -> Path:
+LIBREOFFICE_INSTALL_HINT = "Install LibreOffice or set SOFFICE to the soffice executable path."
+
+
+def convert_legacy_word(input_path: Path, work_dir: Path, soffice: Path | None) -> Path:
     if input_path.suffix.lower() == ".docx":
         normalized = work_dir / f"{input_path.stem}.normalized.docx"
         if normalized.exists() and normalized.stat().st_mtime >= input_path.stat().st_mtime:
@@ -2307,6 +2310,11 @@ def convert_legacy_word(input_path: Path, work_dir: Path, soffice: Path) -> Path
         return normalize_docx_alignment_values(input_path, normalized)
     if input_path.suffix.lower() not in {".doc", ".rtf", ".odt"}:
         raise ValueError(f"Unsupported sample format: {input_path.suffix}. Use .doc, .docx, .rtf, or .odt.")
+    if soffice is None:
+        raise RuntimeError(
+            f"LibreOffice is required to convert legacy Word file {input_path} to DOCX. "
+            f"For no-LibreOffice trial runs, save the file as .docx first. {LIBREOFFICE_INSTALL_HINT}"
+        )
     output = work_dir / f"{input_path.stem}.converted.docx"
     normalized = work_dir / f"{input_path.stem}.normalized.docx"
     if normalized.exists() and normalized.stat().st_mtime >= input_path.stat().st_mtime:
@@ -2372,14 +2380,28 @@ def require_libreoffice() -> Path:
     soffice = find_soffice()
     if soffice is None:
         raise RuntimeError(
-            "LibreOffice is required for this skill because every run must render DOCX pages for visual QA. "
-            "Install LibreOffice or set SOFFICE to the soffice executable path."
+            "LibreOffice is required for review/strict visual QA and legacy .doc/.rtf/.odt conversion. "
+            f"Use --qa-level fast with .docx files for a no-render trial run, or {LIBREOFFICE_INSTALL_HINT}"
         )
     if not PDF_RENDERER.exists():
         raise RuntimeError(f"PDFKit page renderer not found: {PDF_RENDERER}")
     if shutil.which("swift") is None:
         raise RuntimeError("Swift is required on macOS to rasterize LibreOffice PDFs into per-page PNGs.")
     return soffice
+
+
+def run_requires_libreoffice(qa_level: str, input_paths: list[Path]) -> bool:
+    if qa_level != "fast":
+        return True
+    return any(path.suffix.lower() in LEGACY_WORD_SUFFIXES for path in input_paths)
+
+
+def libreoffice_optional_message(input_paths: list[Path]) -> str:
+    names = ", ".join(path.name for path in input_paths) if input_paths else "no Word inputs"
+    return (
+        "LibreOffice: not found; continuing because --qa-level fast skips rendering and inputs are already .docx "
+        f"({names}). Rerun with --qa-level strict on a machine with LibreOffice before final delivery."
+    )
 
 
 def emit(message: str, quiet: bool = False, important: bool = False) -> None:
@@ -2738,14 +2760,14 @@ def render_for_visual_qa(
     )
 
 
-def write_fast_visual_qa_report(docx_path: Path, render_dir: Path, soffice: Path, label: str) -> dict[str, Any]:
+def write_fast_visual_qa_report(docx_path: Path, render_dir: Path, soffice: Path | None, label: str) -> dict[str, Any]:
     clean_render_dir(render_dir)
     report = {
         "label": label,
         "qa_level": "fast",
         "docx": str(docx_path),
         "render_dir": str(render_dir),
-        "soffice": str(soffice),
+        "soffice": str(soffice) if soffice else None,
         "pdf": None,
         "page_count": 0,
         "blank_like_pages": [],
@@ -2756,6 +2778,11 @@ def write_fast_visual_qa_report(docx_path: Path, render_dir: Path, soffice: Path
         "manual_review_required": False,
         "visual_review_gate": "fast mode skips LibreOffice rendering; rerun with --qa-level review or strict before final delivery",
         "manual_review_note": "Fast QA validates document generation but intentionally skips page rendering.",
+        "dependency_note": (
+            "LibreOffice was unavailable, so this run is a no-render trial."
+            if soffice is None
+            else "LibreOffice was available, but fast QA intentionally skipped rendering."
+        ),
     }
     (render_dir / "visual-report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     write_visual_risk_report(report, render_dir, [], None)
@@ -2766,6 +2793,7 @@ def write_fast_visual_qa_report(docx_path: Path, render_dir: Path, soffice: Path
         f"Render directory: {render_dir}",
         "Rendered pages: 0",
         "Manual review required: no",
+        "LibreOffice: " + (str(soffice) if soffice else "not available"),
         "Visual rendering skipped. Rerun with --qa-level review or --qa-level strict before final delivery.",
     ]
     (render_dir / "visual-report.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -5361,14 +5389,25 @@ def main() -> int:
     if args.cleanup_after_delivery and args.qa_level != "strict":
         raise RuntimeError("--cleanup-after-delivery is allowed only with --qa-level strict final delivery.")
     args.analysis_dir.mkdir(parents=True, exist_ok=True)
-    with tracker.measure("startup_validation"):
-        soffice = require_libreoffice()
     visual_qa_dir = (args.visual_qa_dir or args.analysis_dir / "visual-qa").resolve()
     policy = qa_policy(args.qa_level, args.render_width, args.render_height)
     render_width = int(policy["render_width"])
     render_height = int(policy["render_height"])
     tracker.set_metric("render_enabled", bool(policy["render_enabled"]))
-    emit(f"LibreOffice: {soffice}", quiet=args.quiet)
+    input_paths = [path for path in (args.sample, args.target) if path is not None]
+    with tracker.measure("startup_validation"):
+        if run_requires_libreoffice(args.qa_level, input_paths):
+            soffice: Path | None = require_libreoffice()
+            tracker.set_metric("libreoffice_required", True)
+            tracker.set_metric("libreoffice_available", True)
+        else:
+            soffice = find_soffice()
+            tracker.set_metric("libreoffice_required", False)
+            tracker.set_metric("libreoffice_available", soffice is not None)
+    if soffice is not None:
+        emit(f"LibreOffice: {soffice}", quiet=args.quiet)
+    else:
+        emit(libreoffice_optional_message(input_paths), quiet=args.quiet, important=True)
     emit(
         f"QA level: {args.qa_level}"
         + (" (visual rendering skipped)" if not policy["render_enabled"] else f" ({render_width}x{render_height})"),

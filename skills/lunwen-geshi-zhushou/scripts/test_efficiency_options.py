@@ -43,6 +43,18 @@ def main() -> int:
     assert_true(not review["edge_overflow_is_error"], "review QA reports edge overflow as risk")
     assert_true(review["render_width"] < strict["render_width"], "review uses lighter width")
     assert_true(fast["render_enabled"] is False, "fast QA skips visual rendering")
+    assert_true(
+        not fmt.run_requires_libreoffice("fast", [Path("sample.docx"), Path("target.docx")]),
+        "fast docx-only trial does not require LibreOffice",
+    )
+    assert_true(
+        fmt.run_requires_libreoffice("fast", [Path("sample.doc")]),
+        "fast legacy inputs still require LibreOffice conversion",
+    )
+    assert_true(
+        fmt.run_requires_libreoffice("review", [Path("sample.docx")]),
+        "review requires LibreOffice rendering",
+    )
 
     pages = [{"page_index": index, "blank_like": index == 5, "edge_overflow": index == 7} for index in range(1, 22)]
     selected = fmt.select_review_page_indices(pages, max_pages=8)
@@ -96,6 +108,21 @@ def main() -> int:
         assert_equal(payload["metrics"]["pdf_conversion_passes"], 1, "performance PDF pass count")
         assert_equal(payload["metrics"]["png_raster_passes"], 1, "performance PNG pass count")
         assert_equal(payload["metrics"]["toc_refreshed_entries"], 57, "performance TOC count")
+
+    with TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        render_dir = root / "visual-qa"
+        docx = root / "target.docx"
+        docx.write_text("placeholder", encoding="utf-8")
+        report = fmt.write_fast_visual_qa_report(docx, render_dir, None, "formatted-output")
+        assert_equal(report["soffice"], None, "fast report records missing LibreOffice as null")
+        assert_true((render_dir / "visual-report.txt").exists(), "fast report is written without LibreOffice")
+        try:
+            fmt.convert_legacy_word(root / "legacy.doc", root, None)
+        except RuntimeError as exc:
+            assert_true("LibreOffice is required to convert legacy Word file" in str(exc), "legacy conversion explains LibreOffice requirement")
+        else:
+            raise AssertionError("legacy conversion without LibreOffice should fail")
 
     with TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)

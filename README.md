@@ -2,7 +2,7 @@
 
 This repository packages the `lunwen-geshi-zhushou` Codex skill as a GitHub-ready Codex plugin.
 
-The skill analyzes a thesis format sample, exports an editable XLSX confirmation table, then applies the confirmed table to a copied Word thesis with comments and mandatory LibreOffice visual QA.
+The skill analyzes a thesis format sample, exports an editable XLSX confirmation table, then applies the confirmed table to a copied Word thesis with comments and tiered LibreOffice visual QA.
 
 ## 最简单用法
 
@@ -20,15 +20,23 @@ Generated evaluation runs, shared caches, local fixture documents, and Python by
 
 ## Requirements
 
-- macOS with LibreOffice installed at `/Applications/LibreOffice.app/Contents/MacOS/soffice`
 - Python 3.12+
 - Python packages from `requirements.txt`
+- Recommended for final delivery: macOS with LibreOffice installed at `/Applications/LibreOffice.app/Contents/MacOS/soffice`, or `SOFFICE` set to another `soffice` executable path
 
 Install Python dependencies:
 
 ```bash
 python3 -m pip install -r requirements.txt
 ```
+
+## LibreOffice Modes
+
+- `--qa-level fast`: trial mode. Works without LibreOffice only when all inputs are already `.docx`. It skips PDF/PNG rendering and is not suitable for final delivery.
+- `--qa-level review`: normal working mode. Requires LibreOffice and renders lighter contact-sheet visual QA.
+- `--qa-level strict`: final delivery mode. Requires LibreOffice and runs the full visual QA and TOC page validation gate.
+
+Legacy `.doc`, `.rtf`, and `.odt` files require LibreOffice for conversion. If you do not have LibreOffice, first save those files as `.docx` in Word/WPS, then run `fast` as a trial.
 
 ## Validate
 
