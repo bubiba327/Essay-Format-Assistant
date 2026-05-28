@@ -1,0 +1,103 @@
+# 论文格式助手 Codex Plugin
+
+This repository packages the `lunwen-geshi-zhushou` Codex skill as a GitHub-ready Codex plugin.
+
+The skill analyzes a thesis format sample, exports an editable XLSX confirmation table, then applies the confirmed table to a copied Word thesis with comments and mandatory LibreOffice visual QA.
+
+## Contents
+
+- `.codex-plugin/plugin.json` - Codex plugin manifest
+- `skills/lunwen-geshi-zhushou/SKILL.md` - skill instructions
+- `skills/lunwen-geshi-zhushou/scripts/` - formatter, QA, and evaluation scripts
+- `skills/lunwen-geshi-zhushou/references/` - role-mapping reference
+- `skills/lunwen-geshi-zhushou/fixtures/` - public fixture manifest template and baseline summaries
+
+Generated evaluation runs, shared caches, local fixture documents, and Python bytecode are intentionally excluded from Git.
+
+## Requirements
+
+- macOS with LibreOffice installed at `/Applications/LibreOffice.app/Contents/MacOS/soffice`
+- Python 3.12+
+- Python packages from `requirements.txt`
+
+Install Python dependencies:
+
+```bash
+python3 -m pip install -r requirements.txt
+```
+
+## Validate
+
+Run script-level checks:
+
+```bash
+./scripts/test_all.sh
+```
+
+Run real-document evaluation after adding local fixture documents:
+
+```bash
+mkdir -p skills/lunwen-geshi-zhushou/fixtures/local
+# Add your private documents here:
+# - format1.doc
+# - format2.doc
+# - format3.docx
+# - sample1.docx
+# - sample2.doc
+
+python3 skills/lunwen-geshi-zhushou/scripts/evaluate_thesis_skill.py \
+  --case all \
+  --qa-level review \
+  --output-dir /tmp/lunwen-review
+```
+
+The local fixture documents are ignored by Git so private thesis samples are not published.
+
+## Basic Usage
+
+Stage 1, analyze a sample and create a confirmation table:
+
+```bash
+skills/lunwen-geshi-zhushou/scripts/run_thesis_format_from_sample.sh \
+  --sample path/to/format-sample.docx \
+  --analysis-dir .thesis_format_analysis \
+  --export-format-table 格式确认表.xlsx \
+  --qa-level review \
+  --quiet \
+  --analyze-only
+```
+
+Stage 2, apply the confirmed table to a target thesis copy:
+
+```bash
+skills/lunwen-geshi-zhushou/scripts/run_thesis_format_from_sample.sh \
+  --format-table 格式确认表.xlsx \
+  --reuse-profile .thesis_format_analysis/format-sample.format-profile.json \
+  --target path/to/thesis.docx \
+  --output thesis_格式调整试改.docx \
+  --analysis-dir .thesis_format_analysis \
+  --qa-level strict \
+  --quiet \
+  --apply-engine styles \
+  --comment-mode role
+```
+
+## Publishing To GitHub
+
+After creating a GitHub repository, add it as the remote and push:
+
+```bash
+git remote add origin git@github.com:YOUR_ACCOUNT/lunwen-geshi-zhushou.git
+git push -u origin main
+```
+
+If you prefer HTTPS:
+
+```bash
+git remote add origin https://github.com/YOUR_ACCOUNT/lunwen-geshi-zhushou.git
+git push -u origin main
+```
+
+## License
+
+MIT. See `LICENSE`.

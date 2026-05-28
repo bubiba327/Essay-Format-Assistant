@@ -1,0 +1,4 @@
+interface:
+  display_name: "论文格式助手"
+  short_description: "先生成完整格式确认表，再按表整理论文并强制视觉验证。"
+  default_prompt: "Use $lunwen-geshi-zhushou to analyze a sample thesis, create a complete editable XLSX format confirmation table, then apply the confirmed table to a copied target Word document with comments and mandatory LibreOffice visual QA."

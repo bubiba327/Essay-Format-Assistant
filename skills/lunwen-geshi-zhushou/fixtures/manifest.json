@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "cases": {
+    "table-format1-sample2": {
+      "description": "English-dominant template applied to a table-heavy thesis. Put matching local documents under fixtures/local before running this case.",
+      "sample": "local/format1.doc",
+      "target": "local/sample2.doc",
+      "apply_engine": "direct",
+      "comment_mode": "role",
+      "expected": {
+        "language": "english-dominant",
+        "required_roles": [
+          "front_heading",
+          "contents_heading",
+          "toc1",
+          "toc2",
+          "toc3",
+          "chapter",
+          "second",
+          "third",
+          "body",
+          "keywords",
+          "keyword_label",
+          "figure_caption",
+          "table_caption",
+          "figure_note",
+          "equation",
+          "reference_heading",
+          "reference_entry",
+          "ack_heading",
+          "ack_body",
+          "header_overall",
+          "header_text",
+          "footer_overall",
+          "footer_text",
+          "page_number",
+          "table_overall",
+          "table_header",
+          "table_body_variable",
+          "table_body_definition",
+          "table_body_value",
+          "table_footnote"
+        ],
+        "allowed_lint_codes": [
+          "mixed_page_number_examples"
+        ]
+      }
+    },
+    "format2-sample1": {
+      "description": "Chinese-dominant legacy DOC template applied to a DOCX sample. Put matching local documents under fixtures/local before running this case.",
+      "sample": "local/format2.doc",
+      "target": "local/sample1.docx",
+      "apply_engine": "direct",
+      "comment_mode": "role",
+      "expected": {
+        "language": "chinese-dominant",
+        "required_roles": [
+          "front_heading",
+          "contents_heading",
+          "toc1",
+          "toc2",
+          "chapter",
+          "second",
+          "third",
+          "body",
+          "keywords",
+          "keyword_label",
+          "figure_caption",
+          "table_caption",
+          "equation",
+          "reference_heading",
+          "reference_entry",
+          "ack_heading",
+          "ack_body",
+          "header_overall",
+          "header_text",
+          "footer_overall",
+          "footer_text",
+          "page_number",
+          "table_overall",
+          "table_header",
+          "table_body_variable",
+          "table_body_definition",
+          "table_body_value"
+        ],
+        "allowed_lint_codes": [
+          "mixed_page_number_examples"
+        ]
+      }
+    },
+    "format3-sample1": {
+      "description": "Chinese-dominant DOCX template applied to a DOCX sample. Put matching local documents under fixtures/local before running this case.",
+      "sample": "local/format3.docx",
+      "target": "local/sample1.docx",
+      "apply_engine": "direct",
+      "comment_mode": "role",
+      "expected": {
+        "language": "chinese-dominant",
+        "required_roles": [
+          "contents_heading",
+          "toc1",
+          "toc2",
+          "chapter",
+          "second",
+          "third",
+          "body",
+          "keywords",
+          "keyword_label",
+          "figure_caption",
+          "table_caption",
+          "reference_heading",
+          "reference_entry",
+          "header_overall",
+          "header_text",
+          "footer_overall",
+          "footer_text",
+          "page_number",
+          "table_overall",
+          "table_header",
+          "table_body_variable",
+          "table_body_definition",
+          "table_footnote"
+        ],
+        "allowed_lint_codes": [
+          "table_width_conflict",
+          "mixed_page_number_examples"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+.venv/
+venv/
+.pytest_cache/
+
+.thesis_format_analysis*/
+.thesis_skill_evaluation*/
+evaluation-runs/
+skills/lunwen-geshi-zhushou/evaluation-runs/
+skills/lunwen-geshi-zhushou/fixtures/local/*
+!skills/lunwen-geshi-zhushou/fixtures/local/.gitkeep
+
+*.tmp
+~$*
