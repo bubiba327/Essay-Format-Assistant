@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from docx import Document
+from docx.oxml.ns import qn
 from docx.shared import Pt
 
 import thesis_format_from_sample as fmt
@@ -78,6 +79,32 @@ def main() -> int:
     assert_equal(variable_signature["italic"], True, "variable cell italic")
     assert_close(value_signature["size_pt"], 9.0, "value cell size")
     assert_close(value_signature["line_spacing"], 1.2, "value cell line spacing")
+
+    variable_tables = Document()
+    short_table = variable_tables.add_table(rows=2, cols=2)
+    long_table = variable_tables.add_table(rows=5, cols=3)
+    for column, width in zip(short_table._tbl.tblGrid.gridCol_lst, (2400, 1200)):
+        column.set(qn("w:w"), str(width))
+    for column, width in zip(long_table._tbl.tblGrid.gridCol_lst, (900, 900, 900)):
+        column.set(qn("w:w"), str(width))
+    usable = fmt.table_usable_width_pt(variable_tables, short_table)
+    width_format = {"table_alignment": "center", "table_layout": "fixed", "table_width_pct": 85}
+    fmt.apply_table_overall(short_table, width_format, usable)
+    fmt.apply_table_overall(long_table, width_format, usable)
+    expected_twips = round(usable * 0.85 * 20)
+    for candidate in (short_table, long_table):
+        grid = [int(column.get(qn("w:w"))) for column in candidate._tbl.tblGrid.gridCol_lst]
+        assert_equal(sum(grid), expected_twips, "uniform body table outer width")
+        for row in candidate._tbl.tr_lst:
+            cell_widths = [int(cell.tcPr.find(qn("w:tcW")).get(qn("w:w"))) for cell in row.tc_lst]
+            assert_equal(sum(cell_widths), expected_twips, "cell widths agree with outer width")
+    assert_equal(len(short_table.rows), 2, "short table height remains variable")
+    assert_equal(len(long_table.rows), 5, "long table height remains variable")
+    different_first_column_widths = (
+        short_table._tbl.tblGrid.gridCol_lst[0].get(qn("w:w"))
+        != long_table._tbl.tblGrid.gridCol_lst[0].get(qn("w:w"))
+    )
+    assert_equal(different_first_column_widths, True, "column proportions remain independent")
     return 0
 
 

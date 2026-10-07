@@ -4839,6 +4839,67 @@ def set_table_width_points(table, width_pt: float | None) -> None:
     tbl_w.set(qn("w:w"), str(int(round(float(width_pt) * 20))))
 
 
+def table_usable_width_pt(doc: Document, table) -> float | None:
+    section_index = 0
+    for child in doc.element.body.iterchildren():
+        if child is table._tbl:
+            break
+        if child.tag == qn("w:p"):
+            properties = child.find(qn("w:pPr"))
+            if properties is not None and properties.find(qn("w:sectPr")) is not None:
+                section_index += 1
+    sections = doc.sections
+    if not sections:
+        return None
+    section = sections[min(section_index, len(sections) - 1)]
+    if section.page_width is None or section.left_margin is None or section.right_margin is None:
+        return None
+    width_pt = section.page_width.pt - section.left_margin.pt - section.right_margin.pt
+    return width_pt if width_pt > 0 else None
+
+
+def reconcile_table_grid_width(table, target_width_pt: float | None) -> None:
+    """Keep the original column proportions while making the visible table total uniform."""
+    if target_width_pt is None or target_width_pt <= 0:
+        return
+    columns = list(table._tbl.tblGrid.gridCol_lst)
+    if not columns:
+        return
+    original = [max(0, int(column.get(qn("w:w")) or 0)) for column in columns]
+    weights = original if sum(original) > 0 else [1] * len(columns)
+    total = sum(weights)
+    target_twips = max(len(columns), int(round(target_width_pt * 20)))
+    widths = []
+    previous = 0
+    cumulative = 0
+    for weight in weights:
+        cumulative += weight
+        boundary = int(round(cumulative * target_twips / total))
+        widths.append(boundary - previous)
+        previous = boundary
+    for column, width in zip(columns, widths):
+        column.set(qn("w:w"), str(width))
+    for row in table._tbl.tr_lst:
+        grid_index = 0
+        if row.trPr is not None:
+            before = row.trPr.find(qn("w:gridBefore"))
+            if before is not None:
+                grid_index = int(before.get(qn("w:val")) or 0)
+        for cell in row.tc_lst:
+            properties = cell.get_or_add_tcPr()
+            span_node = properties.find(qn("w:gridSpan"))
+            span = max(1, int(span_node.get(qn("w:val")) or 1)) if span_node is not None else 1
+            cell_width = sum(widths[grid_index:grid_index + span])
+            if cell_width > 0:
+                width_node = properties.find(qn("w:tcW"))
+                if width_node is None:
+                    width_node = OxmlElement("w:tcW")
+                    properties.append(width_node)
+                width_node.set(qn("w:type"), "dxa")
+                width_node.set(qn("w:w"), str(cell_width))
+            grid_index += span
+
+
 def clear_table_indent(table) -> None:
     tbl_pr = table._tbl.tblPr
     if tbl_pr is None:
@@ -4889,7 +4950,7 @@ def set_table_text_wrapping(table, wrapping: str | None) -> None:
     tbl_pr.append(tblp_pr)
 
 
-def apply_table_overall(table, fmt: dict[str, Any]) -> None:
+def apply_table_overall(table, fmt: dict[str, Any], usable_width_pt: float | None = None) -> None:
     alignment = normalized_table_alignment(fmt.get("table_alignment") or "center")
     table.alignment = to_table_alignment(alignment)
     if alignment == "center":
@@ -4898,8 +4959,14 @@ def apply_table_overall(table, fmt: dict[str, Any]) -> None:
     set_table_layout(table, fmt.get("table_layout"))
     if fmt.get("table_width_pt") is not None:
         set_table_width_points(table, fmt.get("table_width_pt"))
+        target_width_pt = float(fmt["table_width_pt"])
     else:
         set_table_width_percent(table, fmt.get("table_width_pct"))
+        target_width_pt = (
+            usable_width_pt * float(fmt["table_width_pct"]) / 100
+            if usable_width_pt is not None and fmt.get("table_width_pct") is not None else None
+        )
+    reconcile_table_grid_width(table, target_width_pt)
     clear_table_row_heights(table)
     set_cell_margins(
         table,
@@ -4973,7 +5040,7 @@ def format_tables(
                     "cell_margin_right_pt",
                 },
             )
-            apply_table_overall(table, overall_fmt)
+            apply_table_overall(table, overall_fmt, table_usable_width_pt(doc, table))
             first_paragraph = next((cell.paragraphs[0] for row in table.rows for cell in row.cells if cell.paragraphs), None)
             if first_paragraph is not None:
                 add_format_comment(doc, first_paragraph, "table_overall", changes, comment_tracker)
