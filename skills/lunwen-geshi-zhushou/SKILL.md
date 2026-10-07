@@ -7,7 +7,7 @@ description: Use when Codex needs to infer formatting from a thesis/sample DOC o
 
 ## Core Rule
 
-Never edit the user's original thesis in place. First analyze only the format sample, then produce an editable `.xlsx` format confirmation table. Wait for the user to review/edit/confirm that table. Only after confirmation should the user provide the target thesis; then apply the confirmed table to a named copy. Add Word comments beside changed paragraphs/tables that state the original format and the adjusted format.
+Never edit the user's original thesis in place. If the user provides only a format sample, analyze it, produce an editable `.xlsx` confirmation table, and wait for the target and the user's confirmation. If the user already provides both sample and target and explicitly asks for formatting, that request authorizes a named trial copy: generate the table, apply its inferred settings, and return both for review without imposing an extra confirmation round. A later user-edited table remains authoritative. Add Word comments beside changed paragraphs/tables that state the original format and the adjusted format.
 
 Use the Documents plugin workflow for DOC/DOCX work. Always load workspace dependencies first and run the bundled Codex Python directly through `scripts/run_thesis_format_from_sample.sh` (or the exact bundled Python path from `load_workspace_dependencies`). Do not probe system Python first and do not fall back through multiple local runtimes.
 
@@ -15,7 +15,7 @@ LibreOffice is the quality gate dependency, not a casual optional extra. Use `/A
 
 ## Workflow
 
-1. Locate the sample format file. Do not ask for the target thesis yet.
+1. Identify which supplied file is the format sample and which is the target. If only the sample is supplied, ask for the target after the table is ready.
 2. Pass legacy `.doc`/`.rtf`/`.odt` files directly to the script. Do not manually pre-convert with `textutil` or LibreOffice. The script creates analysis copies, uses LibreOffice for the main conversion, and only uses `textutil` internally as a narrow fallback to recover missing TOC/table-caption roles from old `.doc` files.
 3. Extract the sample format and generate an editable `.xlsx` confirmation table:
    - page size/margins if available
@@ -90,11 +90,13 @@ LibreOffice is the quality gate dependency, not a casual optional extra. Use `/A
    - `review`: render at lighter dimensions, write `contact-sheet.png`, `visual-risk-report.txt/json`, and inspect the selected review/risk pages instead of opening every page.
    - `strict`: render full high-resolution pages and keep side-edge ink detection as a hard failure.
    - Open the rendered PNGs/contact sheet and inspect layout, TOC, tables, figures, captions, comments, spacing, overlap, blank pages, and page breaks according to the QA level.
+   - For Chinese or mixed-language documents, inspect actual Chinese glyphs in a representative heading, body paragraph, table cell, and reference entry where those roles exist. A successful DOCX/XML check, PDF text extraction, or `profile-lint-report` does not prove the glyphs are visible: PDF text may still extract correctly when the page shows boxes. Treat boxes, missing characters, or an implausible fallback face as a failed visual gate.
+   - If glyphs fail, compare a PDF of the untouched target made with the same renderer and inspect the output PDF's embedded/substituted font names when tools such as `pdffonts` are available. Check the DOCX's direct and style font slots, inherited theme fonts, and language metadata before changing any font. This separates a renderer/environment failure from a formatting change. Prefer an installed, visually close Chinese font; record any departure from the confirmed font. Do not silently replace every Chinese role with one universal fallback.
    - Run structural QA for loose heading numbering such as `5.2. 3 ...`; if such a heading keeps body first-line indentation or wrong blank-line distribution, fail the run and fix role recognition/application before delivery.
    - Treat a TOC displayed-page mismatch as a delivery error. In `review`/`strict`, the script must write `toc-page-validation.txt/json` after rendering; a formatted DOCX cannot pass final delivery while a TOC entry points to a stale page.
    - Treat automatic side-edge ink detection as a hard failure: if a rendered body page has text/table/image ink touching the left or right page edge, rerun after fixing table width, table text wrapping, image layout, or paragraph formatting.
    - If visual QA finds any problem, do not deliver the DOCX. Identify whether the cause is the confirmed format table, role recognition, formatting application, comments, table/image handling, or rendering setup; fix the smallest responsible part; rerun the formatting step; render again; inspect again.
-   - Repeat the edit -> render -> inspect loop until the rendered PNGs pass visual QA.
+   - Use a `review` render and a few representative pages to test a specific correction before another full `strict` run. After two corrections fail for the same symptom, stop changing fonts or engines speculatively; gather new evidence or report the unresolved limitation. Run `strict` once the representative pages are readable and the role mapping is sound, then inspect its final pages.
    - Do not deliver a formatted DOCX until the final rendered PNGs have been visually checked and accepted. If rendering fails, fix rendering or formatting first.
 19. For a completed final handoff, remove generated working artifacts only after `--qa-level strict` has passed:
    - pass `--cleanup-after-delivery` when the user no longer needs to edit/reuse the confirmation table
@@ -139,6 +141,8 @@ The script writes a JSON format profile, an editable `.xlsx` table, and mandator
 Stage 1 also writes `run-manifest.json` for cache validation, `profile-lint-report.txt/json` for high-risk profile warnings, and `performance-analyze.json` for elapsed-phase/render-pass measurements. A cache hit is allowed only when the sample hash, script hash, QA level, render dimensions, and relevant options match; otherwise rerun conversion/analysis/rendering. The lint report is part of the handoff and should be mentioned when it contains warnings.
 
 Efficiency rule: do not repeat Stage 1 visual rendering during Stage 2 when a confirmed format table is already loaded. Prefer `--reuse-profile` with the previous `format-profile.json`; allow the shared sample cache to avoid re-converting/re-rendering a previously verified unchanged template in a later work run; analyze only what is needed for non-table fields such as image layout; and render the formatted output only. Stage 2 writes `performance-apply.json`; read this short summary before verbose page-level JSON when reporting runtime or investigating slowness. Use `--quiet` by default for routine runs; read the written reports for details instead of flooding the chat with role summaries.
+
+Before a costly final render, review a short role inventory against the target: distinguish captions from sentences mentioning a figure/table, check reference entries, and confirm that rows absent from the sample are not applied. Fix a wrong role classification before spending time on font or pagination tuning. Keep one diagnostic record of each attempted correction and its observed result so a failed approach is not retried under a new filename.
 
 Chinese/English rule: keep one unified role-recognition pipeline. The script records whether the sample is Chinese-dominant, English-dominant, or mixed, then applies both English and Chinese role heuristics where they match. This supports mixed theses with Chinese body text, English abstracts, English table heads, or bilingual captions.
 

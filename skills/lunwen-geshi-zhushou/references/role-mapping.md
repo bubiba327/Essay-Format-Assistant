@@ -43,6 +43,6 @@ Heading blank paragraphs are part of format, not content. Learn explicit blank p
 
 After applying the profile, run structural heading QA. Loose heading numbers such as `5.2. 3 Explained variable` must not keep body first-line indentation. If indentation or blank-line counts differ from the target heading role, the run has not passed.
 
-Visual QA must catch layout overflow. In addition to manual PNG inspection, treat side-edge ink in the rendered body area as a failed visual gate because it often indicates a table, image, or paragraph has exceeded the printable area.
+Visual QA must catch layout overflow and legibility. In addition to manual PNG inspection, treat side-edge ink in the rendered body area as a failed visual gate because it often indicates a table, image, or paragraph has exceeded the printable area. For Chinese text, visually inspect representative glyphs in the output PNG; correct PDF text extraction alone cannot rule out missing-glyph boxes.
 
 When adding format-change comments, attach comments to the first changed text run in the relevant paragraph/table cell. In `role` mode, add one representative comment per role; in `all` mode, add one comment to each changed paragraph/table cell until the safety cap is reached.
