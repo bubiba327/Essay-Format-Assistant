@@ -17,6 +17,10 @@ LibreOffice is the quality gate dependency, not a casual optional extra. Use `/A
 
 1. Identify which supplied file is the format sample and which is the target. If only the sample is supplied, ask for the target after the table is ready.
 2. Pass legacy `.doc`/`.rtf`/`.odt` files directly to the script. Do not manually pre-convert with `textutil` or LibreOffice. The script creates analysis copies, uses LibreOffice for the main conversion, and only uses `textutil` internally as a narrow fallback to recover missing TOC/table-caption roles from old `.doc` files.
+Before extraction, read any explicit formatting prose before trusting visual style inference. A requirements document is not always a finished sample: distinguish abstract/body font sizes, and do not learn body-table formatting from cover information forms. The script only parses a narrow set of unambiguous Chinese body requirements; inspect its `explicit_body_requirements` diagnostics and manually resolve conflicts in the editable table before application. Preserve target-only roles absent from the sample.
+   - Targets without abstracts/contents start at the first recognized chapter; standalone titles before it stay unchanged. An unrecognized start must fail visibly, never return a zero-change success.
+   - Check headings stay with following text and table captions stay with their tables in rendered pages. Apply pagination repairs only where needed; do not unconditionally keep long tables on a single page.
+   - If CJK glyphs fail, diagnose renderer font substitution before changing document fonts. Any temporary font mapping must be task-local, use installed fonts, and be disclosed as renderer-only evidence. It does not verify WPS font availability or authorize font installation.
 3. Extract the sample format and generate an editable `.xlsx` confirmation table:
    - page size/margins if available
    - header distance, footer distance, odd/even header-footer setting, first-page-different setting, page-number location, numbering format, and restart/continue section numbering

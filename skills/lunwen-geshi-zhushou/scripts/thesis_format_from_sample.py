@@ -3053,6 +3053,58 @@ def reconcile_legacy_toc_visible_booleans(signature: dict[str, Any], role: str) 
         signature[field_name] = False
 
 
+def apply_explicit_body_requirements(profile: dict[str, Any], doc: Document) -> None:
+    """Read unambiguous Chinese body instructions, never abstract/cover prose.
+
+    Conflicting statements stay unresolved and are exposed for human review.
+    This deliberately does not interpret arbitrary instructions in attachments.
+    """
+    candidates = []
+    for paragraph in doc.paragraphs:
+        text = paragraph.text.strip()
+        match = re.search(r"(?:正文|内容)(?:字体)?为(小四|四|五)号(宋体|黑体|楷体)", text)
+        if not match or any(word in text for word in ("摘要", "关键词", "声明", "授权")):
+            continue
+        size = {"小四": 12.0, "四": 14.0, "五": 10.5}[match[1]]
+        values = {"size_pt": size, "east_asia_font": match[2]}
+        if re.search(r"1[.．]5倍行距", text):
+            values["line_spacing"] = 1.5
+        if re.search(r"段间距为?0", text):
+            values.update(before_pt=0.0, after_pt=0.0)
+        candidates.append((values, text))
+    if not candidates:
+        return
+    fields = {key for values, _ in candidates for key in values}
+    conflicts = []
+    for key in sorted(fields):
+        values = {values[key] for values, _ in candidates if key in values}
+        if len(values) == 1:
+            profile["roles"]["body"][key] = values.pop()
+        else:
+            conflicts.append(key)
+    profile.setdefault("source_observations", {})["body"] = {
+        "count": len(candidates), "examples": [text for _, text in candidates[:5]],
+    }
+    profile["explicit_body_requirements"] = {
+        "examples": [text for _, text in candidates], "conflicting_fields": conflicts,
+    }
+
+
+def target_format_start_index(doc: Document) -> int:
+    """Prefer explicit academic front matter; fall back to a real chapter.
+
+    With no recognizable entry point, fail instead of silently formatting zero
+    paragraphs. Standalone titles before the first chapter remain unchanged.
+    """
+    for index, paragraph in enumerate(doc.paragraphs):
+        if is_academic_start_text(paragraph.text):
+            return index
+    for index, paragraph in enumerate(doc.paragraphs):
+        if role_for_target(paragraph.text.strip(), paragraph.style.name, False, False) == "chapter":
+            return index
+    raise ValueError("Cannot locate academic content: no abstract, contents, or chapter heading. Review target roles before applying formatting.")
+
+
 def update_profile_from_observations(profile: dict[str, Any], sample_docx: Path, legacy_source: bool = False) -> dict[str, Any]:
     doc = Document(sample_docx)
     profile["document_language"] = infer_document_language_profile(doc)
@@ -3146,7 +3198,8 @@ def update_profile_from_observations(profile: dict[str, Any], sample_docx: Path,
     if not doc.tables:
         add_flattened_table_observations(doc, observations)
 
-    tables = list(doc.tables)
+    tables = [table for table in doc.tables if not table_looks_like_front_cover(table)
+              and any(cell.text.strip() for row in table.rows for cell in row.cells)]
     captioned_tables = [table for table in tables if has_preceding_table_caption(table)]
     if captioned_tables:
         tables = captioned_tables
@@ -3243,6 +3296,7 @@ def update_profile_from_observations(profile: dict[str, Any], sample_docx: Path,
         profile["image_format"] = choose_common_image_signature(preferred_image_observations)
         profile["image_format"]["count"] = len(preferred_image_observations)
         profile["image_format"]["detected_from"] = "caption_nearby" if captioned_image_observations else "all_images"
+    apply_explicit_body_requirements(profile, doc)
     ensure_inferred_table_header_role(profile)
     profile["enabled_roles"] = observed_roles_for_table(profile)
     return profile
@@ -3614,6 +3668,10 @@ def lint_profile(profile: dict[str, Any]) -> list[dict[str, str]]:
     roles = profile.get("roles", {})
     enabled_roles = set(profile.get("enabled_roles") or roles.keys())
     issues: list[dict[str, str]] = []
+    conflicts = profile.get("explicit_body_requirements", {}).get("conflicting_fields", [])
+    if conflicts:
+        issues.append({"severity": "warning", "code": "conflicting_body_requirements",
+                       "role": "body", "message": "Resolve explicit body requirements in the format table: " + ", ".join(conflicts)})
     for role in ("figure_caption", "table_caption"):
         fmt = roles.get(role) or {}
         font = normalize_text_cell(fmt.get("font"))
@@ -5266,19 +5324,14 @@ def apply_profile(
         ensure_role_styles(doc, profile, enabled_roles)
 
     header_footer_notice_pending = apply_header_footer_profile(doc, profile, enabled_roles, protected_section_indices)
-    formatting_started = False
+    format_start_index = target_format_start_index(doc)
     in_references = False
     in_ack = False
     last_caption_context: str | None = None
-    for paragraph in doc.paragraphs:
-        if paragraph._p in protected_paragraph_elements:
+    for paragraph_index, paragraph in enumerate(doc.paragraphs):
+        if paragraph._p in protected_paragraph_elements or paragraph_index < format_start_index:
             continue
         text = paragraph.text.strip()
-        if not formatting_started:
-            if is_academic_start_text(text):
-                formatting_started = True
-            else:
-                continue
         if paragraph._p in protected_paragraph_elements:
             continue
 
